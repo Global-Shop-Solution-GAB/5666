@@ -1,0 +1,188 @@
+Program.Sub.ScreenSU.Start
+Gui.f_QDL_Watchdog..Create
+Gui.f_QDL_Watchdog..Caption("Quote Doc Link Watchdog")
+Gui.f_QDL_Watchdog..Size(3405,1770)
+Gui.f_QDL_Watchdog..MinX(0)
+Gui.f_QDL_Watchdog..MinY(0)
+Gui.f_QDL_Watchdog..Position(0,0)
+Gui.f_QDL_Watchdog..BackColor(-2147483633)
+Gui.f_QDL_Watchdog..MaxButton(False)
+Gui.f_QDL_Watchdog..MinButton(False)
+Gui.f_QDL_Watchdog..MousePointer(0)
+Gui.f_QDL_Watchdog..Sizeable(False)
+Gui.f_QDL_Watchdog..Event(UnLoad,Form_UnLoad)
+Gui.f_QDL_Watchdog.cmdStart.Create(Button)
+Gui.f_QDL_Watchdog.cmdStart.Size(855,375)
+Gui.f_QDL_Watchdog.cmdStart.Position(525,615)
+Gui.f_QDL_Watchdog.cmdStart.Caption("START")
+Gui.f_QDL_Watchdog.cmdStart.Event(Click,cmdStart_Click)
+Gui.f_QDL_Watchdog.cmdStOP.Create(Button)
+Gui.f_QDL_Watchdog.cmdStOP.Size(855,375)
+Gui.f_QDL_Watchdog.cmdStOP.Position(1755,630)
+Gui.f_QDL_Watchdog.cmdStOP.Caption("STOP")
+Gui.f_QDL_Watchdog.cmdStOP.Event(Click,cmdStOP_Click)
+Gui.f_QDL_Watchdog.lbl1.Create(Label,"Current Status:",True,1245,255,0,315,195,True,0,"Arial",8,-2147483633,0)
+Gui.f_QDL_Watchdog.lblStatus.Create(Label,"INACTIVE",True,1110,255,0,1635,195,True,0,"Arial",10,-2147483633,0)
+Gui.f_QDL_Watchdog.lblStatus.FontStyle(True,False,False,False,False)
+Gui.f_QDL_Watchdog.lblStatus.ForeColor(255)
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+	v.Global.sScriptLoc.Declare(string)
+	v.Global.bRunScript.Declare(boolean)
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+'Author: Daniel Duncan
+'Customer: Load King
+'Program Name: Quote Directory Maintenance
+'Date Started: 9/5/19
+'Description: This project is placed in Estimating / Routing & Quote Management.  This program is called from Online Update and controls when the quotation document linking script runs.
+'Quote: 11685-0
+'GAP: 5666
+	f.Intrinsic.Control.Try
+		'program it run on pre online update hook 38120 
+		'a screen will show up to allow the user to start or stop the calling of a script that will link documents to quotes
+		
+		F.Intrinsic.Control.CallSub(IsRunning)
+		
+		gui.f_QDL_Watchdog.cmdStop.Enabled(False)
+		
+		gui.f_QDL_Watchdog..Show		
+	f.Intrinsic.Control.Catch
+		f.Intrinsic.Control.CallSub(ErrorMsg, CurrentSub, v.Ambient.CurrentSubroutine)
+	f.Intrinsic.Control.EndTry	
+Program.Sub.Main.End
+
+Program.Sub.cmdStart_Click.Start
+	F.Intrinsic.Control.Try
+		V.Local.sFile.Declare(String)
+		V.Local.bRet.Declare(Boolean,False)
+		V.Local.sGab.Declare(String)
+		V.Local.iRet.Declare(String)		
+		
+		F.Intrinsic.String.Build("{0}\5666_Quote_{1}.stop",V.Caller.FilesDir,V.Caller.CompanyCode,V.Local.sFile)
+		F.Intrinsic.File.Exists(V.Local.sFile,v.Local.bRet)
+		
+		F.Intrinsic.Control.If(V.Local.bRet,=,True)
+			F.Intrinsic.File.DeleteFile(V.Local.sFile)
+		F.Intrinsic.Control.EndIf
+		
+		gui.f_QDL_Watchdog.lblStatus.text("ACTIVE")
+		gui.f_QDL_Watchdog.lblStatus.ForeColor(25600)
+		
+		gui.f_QDL_Watchdog.cmdStart.Enabled(False)
+		gui.f_QDL_Watchdog.cmdStop.Enabled(True)
+		
+		f.Intrinsic.String.Build("{0}GCG_5666_Quote_Doc_Link.g2u",v.Caller.GasDir,V.Local.sGab)
+		F.Global.Task.CallAsyncGas(V.Local.sGab,"",2,V.Local.iRet)
+		
+	F.Intrinsic.Control.Catch
+		f.Intrinsic.Control.CallSub(ErrorMsg, CurrentSub, v.Ambient.CurrentSubroutine)
+	F.Intrinsic.Control.EndTry
+Program.Sub.cmdStart_Click.End
+
+Program.Sub.cmdStOP_Click.Start
+	f.Intrinsic.Control.Try
+		gui.f_QDL_Watchdog.lblStatus.text("INACTIVE")
+		gui.f_QDL_Watchdog.lblStatus.ForeColor(255)
+	f.Intrinsic.Control.Catch
+		f.Intrinsic.Control.CallSub(ErrorMsg, CurrentSub, v.Ambient.CurrentSubroutine)
+	f.Intrinsic.Control.EndTry
+	
+	F.Intrinsic.Control.Try
+		V.Local.sFile.Declare(String)
+		V.Local.bRet.Declare(Boolean,False)
+		
+		gui.f_QDL_Watchdog.lblStatus.text("INACTIVE")
+		gui.f_QDL_Watchdog.lblStatus.ForeColor(255)
+		
+		gui.f_QDL_Watchdog.cmdStart.Enabled(True)
+		gui.f_QDL_Watchdog.cmdStop.Enabled(False)
+		
+		F.Intrinsic.String.Build("{0}\5666_Quote_{1}.stop",V.Caller.FilesDir,V.Caller.CompanyCode,V.Local.sFile)
+		F.Intrinsic.File.Exists(V.Local.sFile,v.Local.bRet)
+		
+		F.Intrinsic.Control.If(V.Local.bRet,=,False)
+			F.Intrinsic.File.String2File(V.Local.sFile,"Quote documents not being uploaded")
+		F.Intrinsic.Control.EndIf
+		
+		Gui.Form.f_BDL_Watchdog.Enabled(True)
+		Gui.Form.f_BDL_Watchdog.Enabled(False)
+	F.Intrinsic.Control.Catch
+		f.Intrinsic.Control.CallSub(ErrorMsg, CurrentSub, v.Ambient.CurrentSubroutine)
+	F.Intrinsic.Control.EndTry
+Program.Sub.cmdStOP_Click.End
+
+Program.Sub.IsRunning.Start
+	F.Intrinsic.Control.Try
+		v.Local.sFile.Declare(string)
+		v.Local.i.Declare(Long)
+		v.Local.bCheck.Declare(Boolean)
+		v.Local.sText.Declare(String)
+		
+		'we run the program async so it will not hold up online update - we check the PID and if it is still running, we end the current program.
+		f.Intrinsic.String.Build("{0}\5666_Quote_{1}.pid",v.Caller.FilesDir,V.Caller.CompanyCode,v.Local.sFile)
+		f.Intrinsic.File.Exists(v.Local.sFile,v.Local.bCheck)
+		f.Intrinsic.Control.If(v.Local.bCheck,=,True)
+			f.Intrinsic.File.File2String(v.local.sFile,v.Local.sText)
+			f.Intrinsic.Task.PIDRunning(v.Local.sText.Long,v.Local.bCheck)
+			f.Intrinsic.Control.If(v.Local.bCheck,=,True)
+				'end program
+				F.Intrinsic.Control.End
+		
+			f.Intrinsic.Control.Else
+				'create file with current PID and continue running
+				f.Intrinsic.File.String2File(v.Local.sFile,v.Ambient.PID)	
+			f.Intrinsic.Control.EndIf
+		f.Intrinsic.Control.Else
+			'create file with current PID and continue running
+			f.Intrinsic.File.String2File(v.Local.sFile,v.Ambient.PID)
+		f.Intrinsic.Control.EndIf
+	
+	F.Intrinsic.Control.Catch
+		f.Intrinsic.Control.CallSub(ErrorMsg, CurrentSub, v.Ambient.CurrentSubroutine)
+	F.Intrinsic.Control.EndTry
+Program.Sub.IsRunning.End
+
+Program.Sub.Form_UnLoad.Start
+F.Intrinsic.Control.Try
+V.Local.sError.Declare(String)
+V.Local.sFile.Declare(String)
+V.Local.bRet.Declare(Boolean,False)
+
+f.Intrinsic.String.Build("{0}\5666_Quote_{1}.pid",v.Caller.FilesDir,V.Caller.CompanyCode,v.Local.sFile)
+F.Intrinsic.File.Exists(V.Local.sFile,V.Local.bRet)
+
+F.Intrinsic.Control.If(V.Local.bRet,=,True)
+	F.Intrinsic.File.DeleteFile(V.Local.sFile)
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.String.Build("{0}\5666_Quote_{1}.stop",V.Caller.FilesDir,V.Caller.CompanyCode,V.Local.sFile)
+F.Intrinsic.File.Exists(V.Local.sFile,v.Local.bRet)
+
+F.Intrinsic.Control.If(V.Local.bRet,=,False)
+	F.Intrinsic.File.String2File(V.Local.sFile,"Quote documents not being uploaded")
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.CallSub(cmdStop_Click)
+
+F.Intrinsic.Control.End
+
+F.Intrinsic.Control.Catch
+	f.Intrinsic.Control.CallSub(ErrorMsg, CurrentSub, v.Ambient.CurrentSubroutine)
+F.Intrinsic.Control.EndTry
+Program.Sub.Form_UnLoad.End
+
+Program.Sub.ErrorMsg.Start
+v.Local.sError.Declare
+
+'Closes ODBC connection, default to connection : "con"
+f.Intrinsic.Control.If(v.ODBC!con.State, =, 1)
+	f.ODBC.Connection!con.Close
+f.Intrinsic.Control.EndIf
+
+'Generic Error message.
+f.Intrinsic.String.Build("Project GCG_5666_Quote_Doc_Link_Watchdog.g2u {0}{0}Subroutine: {1}{0}Error: {2} with Description: {3}", v.Ambient.NewLine, v.Args.CurrentSub, v.Ambient.ErrorNumber, v.Ambient.ErrorDescription, v.Local.sError)
+f.Intrinsic.UI.Msgbox(v.Local.sError)
+Program.Sub.ErrorMsg.End
