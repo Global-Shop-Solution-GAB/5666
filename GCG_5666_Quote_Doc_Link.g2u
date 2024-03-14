@@ -1,0 +1,192 @@
+﻿Program.Sub.Preflight.Start
+V.Global.iGroup.Declare(Long,-1)
+V.Global.sSourceDir.Declare(string)
+V.Global.sLinkDir.Declare(string)
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+'Author: Daniel Duncan
+'Customer: Load King
+'Program Name: Quote Directory Maintenance
+'Date Started: 9/5/19
+'Description: This project is placed in Estimating / Routing & Quote Management.  This program is called from the accompanying watchdog program to pick up any documents in the source dir, move them to the link dir, and create a link in document control to the quote.
+'Quote: 11685-0
+'GAP: 5666
+
+'Rev History:
+'10/8/19 - DD - Changed document control section to link to the part instead of the quote.  Also changed the document name to include a rev # if the document passed already exists in document control.
+	F.Intrinsic.Control.Try
+		F.ODBC.Connection!Con.OpenCompanyConnection
+		
+		V.Local.sError.Declare(String,"")
+		V.Local.sRow.Declare(String,"")
+		V.Local.sParent.Declare(String,"")
+		V.Local.sRev.Declare(String,"")
+		V.Local.sFile.Declare(String,"")
+		V.Local.sValue.Declare(String,"")
+		V.Local.sRec.Declare(String,"")
+		v.Local.bCheck.Declare(boolean)
+		
+		'Look in specified directory for any files named as a quote number.  Attach those documents to the quote if found.
+		F.Intrinsic.String.Build("{0}\5666_Quote_{1}.stop",V.Caller.FilesDir,V.Caller.CompanyCode,V.Local.sFile)
+		F.Intrinsic.File.Exists(V.Local.sFile,v.Local.bCheck)
+		F.Intrinsic.Control.If(V.Local.bCheck,=,True)
+			F.Intrinsic.Control.End
+		F.Intrinsic.Control.EndIf
+		
+		F.Intrinsic.Control.CallSub(SetDirectories)
+		F.Intrinsic.Control.CallSub(CheckForFiles)
+		F.Intrinsic.Control.CallSub(Exit)
+	F.Intrinsic.Control.Catch
+		f.Intrinsic.Control.CallSub(ErrorMsg, CurrentSub, v.Ambient.CurrentSubroutine)
+		F.Intrinsic.Control.CallSub(Exit)
+	f.Intrinsic.Control.Finally
+	
+Function.Intrinsic.Control.EndTry
+Program.Sub.Main.End
+
+Program.Sub.ErrorMsg.Start
+v.Local.sError.Declare
+
+'Generic Error message.
+f.Intrinsic.String.Build("Project GCG_5666_Quote_Doc_Link.g2u {0}{0}Subroutine: {1}{0}Error: {2} with Description: {3}", v.Ambient.NewLine, v.Args.CurrentSub, v.Ambient.ErrorNumber, v.Ambient.ErrorDescription, v.Local.sError)
+f.Intrinsic.UI.Msgbox(v.Local.sError)
+Program.Sub.ErrorMsg.End
+
+Program.Sub.SetDirectories.Start
+	f.Intrinsic.Control.Try
+		v.Local.sSQL.Declare(string)
+		
+		'getting the source and link dir.
+		F.Intrinsic.Control.If(V.DataTable.Dir.Exists,=,False)
+			V.Local.sSql.Set("Select Qte_Source_Dir, Qte_Link_Dir, GroupID From GCG_5666_QteLinkDir")
+			F.ODBC.Connection!Con.OpenCompanyConnection
+				F.Data.DataTable.CreateFromSQL("Dir","Con",V.Local.sSql,True)
+			F.ODBC.Connection!Con.Close
+		F.Intrinsic.Control.EndIf
+		
+		F.Intrinsic.Control.If(V.DataTable.Dir.RowCount--,=,-1)
+			F.Intrinsic.UI.Msgbox("Quote Link Directories have not been set up Go to Menu Item: Estimating/Routing & Quote Management > File > Quote Link Directories (5666) to set up directories","Attention")
+			F.Intrinsic.Control.End
+		F.Intrinsic.Control.Else
+			V.Global.sSourceDir.Set(V.DataTable.Dir(V.DataTable.Dir.RowCount--).Qte_Source_Dir!FieldValTrim)
+			F.Intrinsic.Control.If(V.Global.sSourceDir.Right1,<>,"\")
+				F.Intrinsic.String.Build("{0}\",V.Global.sSourceDir,V.Global.sSourceDir)
+			F.Intrinsic.Control.EndIf
+			V.Global.sLinkDir.Set(V.DataTable.Dir(V.DataTable.Dir.RowCount--).Qte_Link_Dir!FieldValTrim)
+			F.Intrinsic.Control.If(V.Global.sLinkDir.Right1,<>,"\")
+				F.Intrinsic.String.Build("{0}\",V.Global.sLinkDir,V.Global.sLinkDir)
+			F.Intrinsic.Control.EndIf
+			V.Global.iGroup.Set(V.DataTable.Dir(V.DataTable.Dir.RowCount--).GroupID!FieldVal)
+		F.Intrinsic.Control.EndIf
+	f.Intrinsic.Control.Catch
+		f.Intrinsic.Control.CallSub(ErrorMsg, CurrentSub, v.Ambient.CurrentSubroutine)
+		F.Intrinsic.Control.CallSub(Exit)
+	f.Intrinsic.Control.EndTry
+Program.Sub.SetDirectories.End
+
+Program.Sub.Exit.Start
+	F.Intrinsic.Control.Try
+		V.Local.sError.Declare(String,"")
+		V.Local.sGab.Declare(String,"")
+		V.Local.iRet.Declare(Long,0)
+		
+		'F.Intrinsic.Control.If(V.ODBC.Con.State,=,1)
+		F.ODBC.Connection!Con.Close
+		'F.Intrinsic.Control.EndIf
+		
+		F.Intrinsic.String.Build("{0}\GAB\GAS\GCG_5666_Quote_Doc_Link.g2u",V.Caller.PluginsDir,V.Local.sGab)
+		F.Global.Task.CallAsyncGas(V.Local.sGab,"",2,V.Local.iRet)
+		
+		F.Intrinsic.Control.End
+		
+		F.Intrinsic.Control.ExitSub
+	
+	F.Intrinsic.Control.Catch
+		f.Intrinsic.Control.CallSub(ErrorMsg, CurrentSub, v.Ambient.CurrentSubroutine)
+	Function.Intrinsic.Control.EndTry
+Program.Sub.Exit.End
+
+Program.Sub.CheckForFiles.Start
+	f.Intrinsic.Control.Try
+		v.Local.sFilesList.Declare(string)
+		v.Local.iCnt.Declare(long,0)
+		v.local.sSQL.Declare(string)
+		v.Local.sFileName.Declare(string)
+		v.Local.sRet.Declare(string)
+		v.Local.sSourceFileName.Declare(string)
+		v.Local.sTargetFileName.Declare(string)
+		v.Local.sFileExt.Declare(string)
+		V.Local.iID.Declare(long,-1)
+		v.Local.sPart.Declare(string)
+		v.Local.iRevCount.Declare(long,1)
+		v.Local.sRev.Declare(string)
+		v.Local.sQuoteNo.Declare(string)
+		v.Local.sDescription.Declare(string)
+		v.Local.bFileFound.Declare(boolean)
+		
+		'Loop through the directory and see if any files are present that need to be attached
+		f.Intrinsic.File.GetFileList(v.Global.sSourceDir,v.Local.sFilesList)
+		f.Intrinsic.Control.If(v.Local.sFilesList,!=,"")
+			f.Intrinsic.String.split(v.Local.sFilesList,":",v.Local.sFilesList)
+		
+			'If the file name equates to an existing quote, move the file from the source dir to the link dir.  Then, attach.
+			f.Intrinsic.Control.For(v.Local.iCnt,0,v.Local.sFilesList.UBound,1)
+				f.Intrinsic.String.Split(v.Local.sFilesList(v.local.iCnt),"_",v.Local.sPart)
+				v.Local.sQuoteNo.Set(v.Local.sPart(0))
+				f.Intrinsic.String.Split(v.Local.sPart(1),".",v.Local.sPart)
+				f.Intrinsic.String.Split(v.Local.sFilesList(v.local.iCnt),".",v.Local.sFileName)
+				v.Local.sFileExt.Set(v.Local.sFileName(v.Local.sFileName.UBound))
+				f.Intrinsic.Control.If(v.Local.sPart.UBound,>,0)					
+					f.Intrinsic.String.Split(v.Local.sFileName(0),"\",v.Local.sFileName)
+					f.Intrinsic.String.Build("Select quote_no from v_quote_header where quote_no='{0}';",v.Local.sQuoteNo,v.Local.sSQL)
+					'f.ODBC.Connection!con.opencompanyconnection
+						f.ODBC.Connection!con.executeandreturn(v.Local.sSQL,2,v.Local.sRet)
+					'f.ODBC.Connection!con.Close
+					
+					f.Intrinsic.Control.If(v.Local.sRet,!=,"")
+						f.Intrinsic.String.Build("{0}{1}.{2}",v.Global.sSourceDir,v.Local.sFileName(v.Local.sFileName.UBound),v.Local.sFileExt,v.Local.sSourceFileName)
+						f.Intrinsic.String.Build("{0}{1}.{2}",v.Global.sLinkDir,v.Local.sFileName(v.Local.sFileName.UBound),v.Local.sFileExt,v.Local.sTargetFileName)
+						
+						'check if document exist already.  Quote is to be attached to the part.
+						'GetLinkID =		Check for key
+						'CreateReference =	Adds key-value
+						'AddDocument = 		Adds document to reference
+						
+						'Get the link ID
+						f.Global.DocumentControl.GetLinkID(v.Local.sPart(0),30,v.Local.iID)
+						f.Intrinsic.Control.If(v.Local.iID,=,-1)
+							F.Global.DocumentControl.CreateReference(v.Local.sPart(0),30,V.Local.iID)
+						f.Intrinsic.Control.EndIf
+						
+						'Get the document ID.  If the ID exists, add or increase the rev, then check again.  Basically, any time a document is added into the watch folder that already exists in document control for the part, 
+						f.Intrinsic.File.Exists(v.Local.sTargetFileName,v.Local.bFileFound)
+						f.Intrinsic.Control.If(v.Local.bFileFound,=,True)
+							f.Intrinsic.Control.DoUntil(v.Local.bFileFound,=,False)
+								f.Intrinsic.String.LPad(v.Local.iRevCount.String,"0",2,v.Local.sRev)
+								f.Intrinsic.String.Build("{0}{1}_{2}.{3}",v.Global.sLinkDir,v.Local.sFileName(v.Local.sFileName.UBound),v.Local.sRev,v.Local.sFileExt,v.Local.sTargetFileName)
+								f.Intrinsic.File.Exists(v.Local.sTargetFileName,v.Local.bFileFound)
+								f.Intrinsic.Math.Add(v.Local.iRevCount,1,v.Local.iRevCount)
+							f.Intrinsic.Control.Loop
+						f.Intrinsic.Control.EndIf
+						f.Intrinsic.String.Build("Quote {0}",v.Local.sQuoteNo,v.local.sDescription)
+						f.Intrinsic.Control.If(v.Local.sRev,!=,"")
+							f.Intrinsic.String.Build("{0} Rev {1}",v.Local.sDescription,v.Local.sRev,v.Local.sDescription)
+						f.Intrinsic.Control.EndIf
+						f.Intrinsic.File.CopyOpenFile(v.Local.sSourceFileName,v.Local.sTargetFileName)
+						F.Intrinsic.File.DeleteFile(V.Local.sSourceFileName)
+						F.Global.DocumentControl.AddDocument(V.Local.iID,v.Local.sTargetFileName,v.Local.sDescription,V.Global.iGroup,"")						
+					f.Intrinsic.Control.EndIf
+				f.Intrinsic.Control.EndIf
+			f.Intrinsic.Control.Next(v.Local.iCnt)
+		f.Intrinsic.Control.EndIf
+	f.Intrinsic.Control.Catch
+		f.Intrinsic.Control.CallSub(ErrorMsg, CurrentSub, v.Ambient.CurrentSubroutine)
+		F.Intrinsic.Control.CallSub(Exit)
+	f.Intrinsic.Control.EndTry
+Program.Sub.CheckForFiles.End
+
+Program.Sub.Comments.Start
+${$5$}$2.0.0.0$}$2
+${$6$}$dduncan$}$20220104160857865$}$r0o+00bj735YsiGsQ60YIo/Zb+26OZQGt8YgPaMj4N/pyICPyphdxjyFDZmis+DEL+7hw8RGmGI=
+Program.Sub.Comments.End
